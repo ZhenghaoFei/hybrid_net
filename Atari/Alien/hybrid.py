@@ -17,13 +17,16 @@ from collections import deque, namedtuple
 
 # Configuration
 EVAL = False
-env = gym.envs.make("Breakout-v0")
-SAVE_DIR = "_dqn"
-VALID_ACTIONS = [0, 1, 2, 3] # Atari Actions: 0 (noop), 1 (fire), 2 (left) and 3 (right) are valid actions
+env = gym.envs.make("Alien-v0")
+SAVE_DIR = "_hybrid"
 PRINT_STEP = 100
 REPLAY_MEMORY_SIZE = 200000
 REPLAY_MEMORY_INIT_SIZE = 100
+PLAN_LAYERS = 15
 
+ACTION_SPACE = env.action_space.n
+VALID_ACTIONS = [i for i in range (env.action_space.n )]
+print("action space: ", VALID_ACTIONS)
 
 def main():
     tf.reset_default_graph()
@@ -71,7 +74,7 @@ def main():
         if EVAL:
             evaluating(sess, env, q_estimator=q_estimator, state_processor=state_processor, num_episodes=100)
         else:
-            for t, stats in deep_q_learning(sess, saver,
+            for t, stats in deep_q_learning(sess, saver, VALID_ACTIONS,
                                             env,
                                             q_estimator=q_estimator,
                                             target_estimator=target_estimator,
@@ -89,6 +92,31 @@ def main():
 
                 print("\nEpisode Reward: {}".format(stats.episode_rewards[-1]))
 
+
+class StateProcessor():
+    """
+    Processes a raw Atari iamges. Resizes it and converts it to grayscale.
+    """
+    def __init__(self):
+        # Build the Tensorflow graph
+        with tf.variable_scope("state_processor"):
+            self.input_state = tf.placeholder(shape=[210, 160, 3], dtype=tf.uint8)
+            self.output = tf.image.rgb_to_grayscale(self.input_state)
+            self.output = tf.image.crop_to_bounding_box(self.output, 34, 0, 160, 160)
+            self.output = tf.image.resize_images(
+                self.output, [84, 84], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+            self.output = tf.squeeze(self.output)
+
+    def process(self, sess, state):
+        """
+        Args:
+            sess: A Tensorflow session object
+            state: A [210, 160, 3] Atari RGB State
+
+        Returns:
+            A processed [84, 84, 1] state representing grayscale values.
+        """
+        return sess.run(self.output, { self.input_state: state })
 
 class Estimator():
     """Q-Value Estimator neural network.
@@ -125,18 +153,37 @@ class Estimator():
         X = tf.to_float(self.X_pl) / 255.0
         batch_size = tf.shape(self.X_pl)[0]
 
+        # Networks >>>>>>>>>>
         # Three convolutional layers
-        conv1 = tf.contrib.layers.conv2d(
-            X, 32, 8, 4, activation_fn=tf.nn.relu)
-        conv2 = tf.contrib.layers.conv2d(
-            conv1, 64, 4, 2, activation_fn=tf.nn.relu)
-        conv3 = tf.contrib.layers.conv2d(
-            conv2, 64, 3, 1, activation_fn=tf.nn.relu)
+        features = tflearn.conv_2d(X, 32, 8, strides=4, activation='relu', name='conv1')
+        features = tflearn.conv_2d(features, 64, 4, strides=2, activation='relu', name='conv2')
+        features = tflearn.conv_2d(features, 64, 3, strides=1, activation='relu', name='conv3')
+
+        # rnn
+        features_rnn = tflearn.layers.core.flatten(features)
+        fc1 = tflearn.fully_connected(features_rnn, 64)
+        fc2 = tflearn.fully_connected(fc1, 32)
+        fc_fb = tflearn.fully_connected(fc2, 64)
+
+        net_rnn = tflearn.activation(tf.matmul(features_rnn,fc1.W) + fc1.b, activation='relu')
+        for i in range(PLAN_LAYERS - 1):
+            net_rnn = tflearn.activation(tf.matmul(net_rnn,fc2.W) + fc2.b, activation='relu')
+            net_rnn = tflearn.activation(tf.matmul(net_rnn,fc_fb.W) + tf.matmul(features_rnn, fc1.W) + fc_fb.b + fc1.b, activation='relu')
+        net_rnn = tflearn.activation(tf.matmul(net_rnn,fc2.W) + fc2.b, activation='relu')
+        rnn_out = tflearn.fully_connected(net_rnn, 512)
 
         # Fully connected layers
-        flattened = tf.contrib.layers.flatten(conv3)
-        fc1 = tf.contrib.layers.fully_connected(flattened, 512)
-        self.predictions = tf.contrib.layers.fully_connected(fc1, len(VALID_ACTIONS))
+        fc_out = tflearn.fully_connected(features, 512)
+
+        #  Fusion
+        alpha  = tflearn.fully_connected(features, 16)
+        self.alpha  = tflearn.fully_connected(alpha, 1, activation='sigmoid')
+        net = tf.add(tf.multiply(fc_out, self.alpha), tf.multiply(rnn_out, (1-self.alpha)))
+
+        # Output Layer
+        self.predictions = tflearn.fully_connected(net, len(VALID_ACTIONS))
+        # <<<<<<<<<<<<<<<<<
+
 
         # Get the predictions for the chosen actions only
         gather_indices = tf.range(batch_size) * tf.shape(self.predictions)[1] + self.actions_pl
@@ -153,8 +200,10 @@ class Estimator():
         # Summaries for Tensorboard
         self.summaries = tf.summary.merge([
             tf.summary.scalar("loss", self.loss),
-            tf.summary.histogram("loss_hist", self.losses),
-            tf.summary.histogram("q_values_hist", self.predictions),
+            # tf.summary.histogram("loss_hist", self.losses),
+            tf.summary.scalar("alpha", tf.reduce_mean(self.alpha)),
+            # tf.summary.histogram("alpha_hist", self.alpha),
+            # tf.summary.histogram("q_values_hist", self.predictions),
             tf.summary.scalar("max_q_value", tf.reduce_max(self.predictions))
         ])
 
@@ -193,6 +242,7 @@ class Estimator():
         if self.summary_writer and total_t%100==0:
             self.summary_writer.add_summary(summaries, global_step)
         return loss
+
 
 
 

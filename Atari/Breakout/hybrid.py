@@ -13,7 +13,6 @@ if "../" not in sys.path:
 
 from lib import plotting
 from lib.deep_q_learner import *
-
 from collections import deque, namedtuple
 
 # Configuration
@@ -220,7 +219,7 @@ class Estimator():
         """
         return sess.run(self.predictions, { self.X_pl: s })
 
-    def update(self, sess, s, a, y):
+    def update(self, sess, s, a, y, total_t):
         """
         Updates the estimator towards the given targets.
 
@@ -237,7 +236,7 @@ class Estimator():
         summaries, global_step, _, loss = sess.run(
             [self.summaries, tf.contrib.framework.get_global_step(), self.train_op, self.loss],
             feed_dict)
-        if self.summary_writer:
+        if self.summary_writer and total_t%100==0:
             self.summary_writer.add_summary(summaries, global_step)
         return loss
 

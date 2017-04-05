@@ -16,8 +16,6 @@ if "../" not in sys.path:
 from lib import plotting
 from collections import deque, namedtuple
 
-# Atari Actions: 0 (noop), 1 (fire), 2 (left) and 3 (right) are valid actions
-VALID_ACTIONS = [0, 1, 2, 3]
 
 PRINT_STEP = 100
 EVAL_EPISODE = 10
@@ -47,7 +45,7 @@ class StateProcessor():
         """
         return sess.run(self.output, { self.input_state: state })
 
-def deep_q_learning(sess, saver,
+def deep_q_learning(sess, saver, valid_actions,
                     env,
                     q_estimator,
                     target_estimator,
@@ -110,7 +108,7 @@ def deep_q_learning(sess, saver,
     # The policy we're following
     policy = make_epsilon_greedy_policy(
         q_estimator,
-        len(VALID_ACTIONS))
+        len(valid_actions))
 
     # Populate the replay memory with initial experience
     print("Populating replay memory...")
@@ -120,7 +118,7 @@ def deep_q_learning(sess, saver,
     for i in range(replay_memory_init_size):
         action_probs = policy(sess, state, epsilons[min(total_t, epsilon_decay_steps-1)])
         action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
-        next_state, reward, done, _ = env.step(VALID_ACTIONS[action])
+        next_state, reward, done, _ = env.step(valid_actions[action])
         next_state = state_processor.process(sess, next_state)
         next_state = np.append(state[:,:,1:], np.expand_dims(next_state, 2), axis=2)
         replay_memory.append(Transition(state, action, reward, next_state, done))
@@ -157,10 +155,7 @@ def deep_q_learning(sess, saver,
             # Epsilon for this time step
             epsilon = epsilons[min(total_t, epsilon_decay_steps-1)]
 
-            # Add epsilon to Tensorboard
-            episode_summary = tf.Summary()
-            episode_summary.value.add(simple_value=epsilon, tag="epsilon")
-            q_estimator.summary_writer.add_summary(episode_summary, total_t)
+
 
             # Maybe update the target estimator
             if total_t % update_target_estimator_every == 0:
@@ -172,7 +167,7 @@ def deep_q_learning(sess, saver,
             # Take a step
             action_probs = policy(sess, state, epsilon)
             action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
-            next_state, reward, done, _ = env.step(VALID_ACTIONS[action])
+            next_state, reward, done, _ = env.step(valid_actions[action])
             next_state = state_processor.process(sess, next_state)
             next_state = np.append(state[:,:,1:], np.expand_dims(next_state, 2), axis=2)
 
@@ -202,7 +197,7 @@ def deep_q_learning(sess, saver,
 
             # Perform gradient descent update
             states_batch = np.array(states_batch)
-            loss = q_estimator.update(sess, states_batch, action_batch, targets_batch)
+            loss = q_estimator.update(sess, states_batch, action_batch, targets_batch, total_t)
 
             if done:
                 break
@@ -219,7 +214,9 @@ def deep_q_learning(sess, saver,
         sys.stdout.flush()
 
         # Add summaries to tensorboard
+        # Add epsilon to Tensorboard
         episode_summary = tf.Summary()
+        episode_summary.value.add(simple_value=epsilon, tag="epsilon")
         episode_summary.value.add(simple_value=stats.episode_rewards[i_episode], node_name="episode_reward", tag="episode_reward")
         episode_summary.value.add(simple_value=stats.episode_lengths[i_episode], node_name="episode_length", tag="episode_length")
         q_estimator.summary_writer.add_summary(episode_summary, total_t)
@@ -248,7 +245,7 @@ def evaluating(sess,
     # The policy we're following
     policy = make_epsilon_greedy_policy(
         q_estimator,
-        len(VALID_ACTIONS))
+        len(valid_actions))
 
     print("Start Evaluating")
 
@@ -272,7 +269,7 @@ def evaluating(sess,
             # Take a step
             action_probs = policy(sess, state, epsilon)
             action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
-            next_state, reward, done, _ = env.step(VALID_ACTIONS[action])
+            next_state, reward, done, _ = env.step(valid_actions[action])
             next_state = state_processor.process(sess, next_state)
             next_state = np.append(state[:,:,1:], np.expand_dims(next_state, 2), axis=2)
             # Update statistics

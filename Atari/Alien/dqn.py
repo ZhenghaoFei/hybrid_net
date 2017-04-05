@@ -17,13 +17,15 @@ from collections import deque, namedtuple
 
 # Configuration
 EVAL = False
-env = gym.envs.make("Breakout-v0")
+env = gym.envs.make("Alien-v0")
 SAVE_DIR = "_dqn"
-VALID_ACTIONS = [0, 1, 2, 3] # Atari Actions: 0 (noop), 1 (fire), 2 (left) and 3 (right) are valid actions
 PRINT_STEP = 100
 REPLAY_MEMORY_SIZE = 200000
 REPLAY_MEMORY_INIT_SIZE = 100
 
+ACTION_SPACE = env.action_space.n
+VALID_ACTIONS = [i for i in range (env.action_space.n )]
+print("action space: ", VALID_ACTIONS)
 
 def main():
     tf.reset_default_graph()
@@ -71,7 +73,7 @@ def main():
         if EVAL:
             evaluating(sess, env, q_estimator=q_estimator, state_processor=state_processor, num_episodes=100)
         else:
-            for t, stats in deep_q_learning(sess, saver,
+            for t, stats in deep_q_learning(sess, saver, VALID_ACTIONS,
                                             env,
                                             q_estimator=q_estimator,
                                             target_estimator=target_estimator,

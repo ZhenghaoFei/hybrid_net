@@ -128,6 +128,7 @@ def build_summaries():
 def train(sess, env, actor, global_step):
     # Set up summary Ops
     summary_ops, summary_vars = build_summaries()
+    print "what?: ", sess.run(tf.trainable_variables())
 
     sess.run(tf.global_variables_initializer())
 
