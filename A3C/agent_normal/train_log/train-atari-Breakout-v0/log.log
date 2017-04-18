@@ -1,0 +1,50 @@
+[32m[0418 10:39:48 @logger.py:69][0m Argv: train-atari.py --env Breakout-v0
+[32m[0418 10:39:49 @common.py:94][0m conv0 input: [None, 84, 84, 12]
+[32m[0418 10:39:49 @common.py:102][0m conv0 output: [None, 84, 84, 32]
+[32m[0418 10:39:49 @common.py:94][0m pool0 input: [None, 84, 84, 32]
+[32m[0418 10:39:49 @common.py:102][0m pool0 output: [None, 42, 42, 32]
+[32m[0418 10:39:49 @common.py:94][0m conv1 input: [None, 42, 42, 32]
+[32m[0418 10:39:49 @common.py:102][0m conv1 output: [None, 42, 42, 32]
+[32m[0418 10:39:49 @common.py:94][0m pool1 input: [None, 42, 42, 32]
+[32m[0418 10:39:49 @common.py:102][0m pool1 output: [None, 21, 21, 32]
+[32m[0418 10:39:49 @common.py:94][0m conv2 input: [None, 21, 21, 32]
+[32m[0418 10:39:49 @common.py:102][0m conv2 output: [None, 21, 21, 64]
+[32m[0418 10:39:49 @common.py:94][0m pool2 input: [None, 21, 21, 64]
+[32m[0418 10:39:49 @common.py:102][0m pool2 output: [None, 10, 10, 64]
+[32m[0418 10:39:49 @common.py:94][0m conv3 input: [None, 10, 10, 64]
+[32m[0418 10:39:49 @common.py:102][0m conv3 output: [None, 10, 10, 64]
+[32m[0418 10:39:49 @common.py:94][0m fc0 input: [None, 10, 10, 64]
+[32m[0418 10:39:49 @common.py:102][0m fc0 output: [None, 512]
+[32m[0418 10:39:49 @common.py:94][0m fc-pi input: [None, 512]
+[32m[0418 10:39:49 @common.py:102][0m fc-pi output: [None, 6]
+[32m[0418 10:39:49 @common.py:94][0m fc-v input: [None, 512]
+[32m[0418 10:39:49 @common.py:102][0m fc-v output: [None, 1]
+[32m[0418 10:39:50 @model_utils.py:33][0m [36mModel Parameters: 
+[0mname           shape               dim
+-------------  --------------  -------
+conv0/W:0      [5, 5, 12, 32]     9600
+conv0/b:0      [32]                 32
+conv1/W:0      [5, 5, 32, 32]    25600
+conv1/b:0      [32]                 32
+conv2/W:0      [4, 4, 32, 64]    32768
+conv2/b:0      [64]                 64
+conv3/W:0      [3, 3, 64, 64]    36864
+conv3/b:0      [64]                 64
+fc0/W:0        [6400, 512]     3276800
+fc0/b:0        [512]               512
+prelu/alpha:0  []                    1
+fc-pi/W:0      [512, 6]           3072
+fc-pi/b:0      [6]                   6
+fc-v/W:0       [512, 1]            512
+fc-v/b:0       [1]                   1[36m
+Total #param=3385928 (12.92 MB assuming all float32)[0m
+[32m[0418 10:39:50 @base.py:116][0m Setup callbacks graph ...
+[32m[0418 10:39:50 @base.py:187][0m Building predictor graph towerp0 on gpu=0 ...
+[32m[0418 10:39:51 @base.py:121][0m Finalize the graph, create the session ...
+[32m[0418 10:39:51 @base.py:129][0m Graph variables initialized.
+[32m[0418 10:39:51 @concurrency.py:36][0m Starting SimulatorMaster ...
+[32m[0418 10:39:51 @concurrency.py:36][0m Starting EnqueueThread ...
+[32m[0418 10:39:51 @base.py:159][0m Start Epoch 1 ...
+[32m[0418 10:40:03 @base.py:175][0m Detected Ctrl-C and exiting main loop.
+[32m[0418 10:40:03 @simulator.py:160][0m [Simulator] Context was terminated.
+[32m[0418 10:40:03 @concurrency.py:96][0m [5m[31mWRN[0m In PredictorWorkerThread id=0, call was cancelled.
