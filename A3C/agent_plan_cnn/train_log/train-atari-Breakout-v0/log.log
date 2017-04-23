@@ -1,0 +1,35 @@
+[32m[0420 11:20:13 @logger.py:69][0m Argv: train-atari.py --env Breakout-v0
+[32m[0420 11:20:15 @gradproc.py:52][0m [5m[31mWRN[0m No Gradient w.r.t cnn_fb
+[32m[0420 11:20:16 @model_utils.py:33][0m [36mModel Parameters: 
+[0mname                         shape               dim
+---------------------------  ---------------  ------
+Conv/weights:0               [8, 8, 12, 16]    12288
+Conv/biases:0                [16]                 16
+Conv_1/weights:0             [4, 4, 16, 32]     8192
+Conv_1/biases:0              [32]                 32
+cnn_h_bias:0                 [1, 1, 1, 150]      150
+cnn_h:0                      [1, 1, 32, 150]    4800
+cnn_1:0                      [1, 1, 150, 64]    9600
+cnn_2:0                      [1, 1, 64, 64]     4096
+cnn_3:0                      [1, 1, 64, 64]     4096
+cnn_fb:0                     [1, 1, 64, 64]     4096
+Conv_2/weights:0             [1, 1, 64, 16]     1024
+Conv_2/biases:0              [16]                 16
+fully_connected/weights:0    [1296, 256]      331776
+fully_connected/biases:0     [256]               256
+fully_connected_1/weights:0  [2592, 256]      663552
+fully_connected_1/biases:0   [256]               256
+alpha:0                      []                    1
+fully_connected_2/weights:0  [256, 6]           1536
+fully_connected_2/biases:0   [6]                   6
+fully_connected_3/weights:0  [256, 1]            256
+fully_connected_3/biases:0   [1]                   1[36m
+Total #param=1046046 (3.99 MB assuming all float32)[0m
+[32m[0420 11:20:16 @base.py:116][0m Setup callbacks graph ...
+[32m[0420 11:20:17 @base.py:187][0m Building predictor graph towerp0 on gpu=0 ...
+[32m[0420 11:20:22 @base.py:121][0m Finalize the graph, create the session ...
+[32m[0420 11:20:23 @base.py:129][0m Graph variables initialized.
+[32m[0420 11:20:23 @concurrency.py:36][0m Starting SimulatorMaster ...
+[32m[0420 11:20:23 @concurrency.py:36][0m Starting EnqueueThread ...
+[32m[0420 11:20:23 @base.py:159][0m Start Epoch 1 ...
+[32m[0420 11:20:25 @base.py:175][0m Detected Ctrl-C and exiting main loop.

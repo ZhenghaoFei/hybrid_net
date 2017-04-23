@@ -88,21 +88,18 @@ class Model(ModelDesc):
 
     def _get_NN_prediction(self, image):
         image = image / 255.0
-        with argscope(Conv2D, nl=tf.nn.relu):
-            l = Conv2D('conv0', image, out_channel=32, kernel_shape=5)
-            l = MaxPooling('pool0', l, 2)
-            l = Conv2D('conv1', l, out_channel=32, kernel_shape=5)
-            l = MaxPooling('pool1', l, 2)
-            l = Conv2D('conv2', l, out_channel=64, kernel_shape=4)
-            l = MaxPooling('pool2', l, 2)
-            l = Conv2D('conv3', l, out_channel=64, kernel_shape=3)
 
-        # features_rnn = tflearn.layers.core.flatten(l)
-        # l = layers.fully_connected(features_rnn, 128, activation_fn=tf.nn.relu)
-        l = FullyConnected('fc0', l, 512, nl=tf.identity)
-        l = PReLU('prelu', l)
-        logits = FullyConnected('fc-pi', l, out_dim=NUM_ACTIONS, nl=tf.identity)    # unnormalized policy
-        value = FullyConnected('fc-v', l, 1, nl=tf.identity)
+        # feature extraction
+        features = layers.conv2d(image, num_outputs=16, kernel_size=[8,8], 
+            stride=[4,4], padding="VALID",activation_fn=tf.nn.relu)
+        features = layers.conv2d(features, num_outputs=32, kernel_size=[4,4], 
+            stride=[2,2], padding="VALID",activation_fn=tf.nn.relu)
+        features = layers.flatten(features)
+
+        hidden = layers.fully_connected(features, 256, activation_fn=tf.nn.relu)
+        logits = layers.fully_connected(hidden, NUM_ACTIONS)
+        value = layers.fully_connected(hidden, 1)
+
         return logits, value
 
 

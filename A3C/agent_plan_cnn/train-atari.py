@@ -19,7 +19,6 @@ import six
 from six.moves import queue
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
-# import tflearn
 
 from tensorpack import *
 from tensorpack.utils.concurrency import *
@@ -33,6 +32,8 @@ from simulator import *
 import common
 from common import (play_model, Evaluator, eval_model_multithread)
 
+
+PLAN_ITER_NUM = 8
 
 IMAGE_SIZE = (84, 84)
 FRAME_HISTORY = 4
@@ -88,18 +89,46 @@ class Model(ModelDesc):
 
     def _get_NN_prediction(self, image):
         image = image / 255.0
-
         # feature extraction
         features = layers.conv2d(image, num_outputs=16, kernel_size=[8,8], 
             stride=[4,4], padding="VALID",activation_fn=tf.nn.relu)
         features = layers.conv2d(features, num_outputs=32, kernel_size=[4,4], 
             stride=[2,2], padding="VALID",activation_fn=tf.nn.relu)
-        features = layers.flatten(features)
+        features_flat = layers.flatten(features) 
 
-        hidden = layers.fully_connected(features, 256, activation_fn=tf.nn.relu)
+        # plan module cnn
+        #   weights init
+        ch_h = 150
+        bias = tf.Variable(np.random.randn(1,1,1,ch_h)*0.01, name='cnn_h_bias', dtype=tf.float32)
+        cnn_h = tf.Variable(np.random.randn(1,1,32,ch_h)*0.01, name='cnn_h', dtype=tf.float32)
+        cnn_1 = tf.Variable(np.random.randn(1,1,ch_h,64)*0.01, name='cnn_1', dtype=tf.float32)
+        cnn_2 = tf.Variable(np.random.randn(1,1,64,64)*0.01, name='cnn_2', dtype=tf.float32)
+        cnn_3 = tf.Variable(np.random.randn(1,1,64,64)*0.01, name='cnn_3', dtype=tf.float32)
+        cnn_fb = tf.Variable(np.random.randn(1,1,64,64)*0.01, name='cnn_fb', dtype=tf.float32)
+
+        #   net
+        plan_h = tf.nn.relu(tf.nn.conv2d(features, cnn_h, [1,1,1,1], padding='SAME') + bias)
+        plan_1 = tf.nn.relu(tf.nn.conv2d(plan_h, cnn_1, [1,1,1,1], padding='SAME'))
+        plan_2 = tf.nn.relu(tf.nn.conv2d(plan_1, cnn_2, [1,1,1,1], padding='SAME'))
+        plan_3 = tf.nn.relu(tf.nn.conv2d(plan_2, cnn_3, [1,1,1,1], padding='SAME'))
+
+        for i in range(PLAN_ITER_NUM - 1):
+            plan_13 = tf.concat([plan_1,plan_3],3)
+            cnn_2_fb = tf.concat([cnn_2, cnn_fb], 2)
+            plan2 = tf.nn.relu(tf.nn.conv2d(plan_13, cnn_2_fb, [1,1,1,1], padding='SAME'))
+            plan_3 = tf.nn.relu(tf.nn.conv2d(plan_2, cnn_3, [1,1,1,1], padding='SAME'))
+
+        plan_net = layers.conv2d(plan_3, num_outputs=16, kernel_size=[1,1], stride=[1,1], padding='SAME', activation_fn=tf.nn.relu)
+        plan_net = layers.flatten(plan_net)
+
+        # combine
+        hidden_plan = layers.fully_connected(plan_net, 256, activation_fn=tf.nn.relu)
+        hidden_reac = layers.fully_connected(features_flat, 256, activation_fn=tf.nn.relu)
+        alpha  = tf.Variable(0.5, name = 'alpha', dtype=tf.float32)
+        hidden = tf.add(tf.multiply(hidden_plan, alpha), tf.multiply(hidden_reac, (1-alpha)))
+
         logits = layers.fully_connected(hidden, NUM_ACTIONS)
         value = layers.fully_connected(hidden, 1)
-
         return logits, value
 
 

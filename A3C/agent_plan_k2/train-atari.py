@@ -33,7 +33,7 @@ import common
 from common import (play_model, Evaluator, eval_model_multithread)
 
 
-PLAN_ITER_NUM = 8
+PLAN_ITER_NUM = 2
 
 IMAGE_SIZE = (84, 84)
 FRAME_HISTORY = 4
