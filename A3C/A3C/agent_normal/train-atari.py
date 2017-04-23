@@ -19,6 +19,7 @@ import six
 from six.moves import queue
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
+# import tflearn
 
 from tensorpack import *
 from tensorpack.utils.concurrency import *
@@ -32,8 +33,6 @@ from simulator import *
 import common
 from common import (play_model, Evaluator, eval_model_multithread)
 
-
-PLAN_ITER_NUM = 8
 
 IMAGE_SIZE = (84, 84)
 FRAME_HISTORY = 4
@@ -89,49 +88,18 @@ class Model(ModelDesc):
 
     def _get_NN_prediction(self, image):
         image = image / 255.0
-        with argscope(Conv2D, nl=tf.nn.relu):
-            l = Conv2D('conv0', image, out_channel=32, kernel_shape=5)
-            l = MaxPooling('pool0', l, 2)
-            l = Conv2D('conv1', l, out_channel=32, kernel_shape=5)
-            l = MaxPooling('pool1', l, 2)
-            l = Conv2D('conv2', l, out_channel=64, kernel_shape=4)
-            l = MaxPooling('pool2', l, 2)
-            l = Conv2D('conv3', l, out_channel=64, kernel_shape=3)
 
-        # plan module
-        # weights init
-        fc1_w  = tf.Variable(np.random.randn(6400, 512) * 0.01, name='fc1_w', dtype=tf.float32)
-        fc1_b  = tf.Variable(np.random.randn(512) * 0.01, name='fc1_b', dtype=tf.float32)
+        # feature extraction
+        features = layers.conv2d(image, num_outputs=16, kernel_size=[8,8], 
+            stride=[4,4], padding="VALID",activation_fn=tf.nn.relu)
+        features = layers.conv2d(features, num_outputs=32, kernel_size=[4,4], 
+            stride=[2,2], padding="VALID",activation_fn=tf.nn.relu)
+        features = layers.flatten(features)
 
-        fc2_w  = tf.Variable(np.random.randn(512, 32) * 0.01, name='fc2_w', dtype=tf.float32)
-        fc2_b  = tf.Variable(np.random.randn(32) * 0.01, name='fc2_b', dtype=tf.float32)
+        hidden = layers.fully_connected(features, 256, activation_fn=tf.nn.relu)
+        logits = layers.fully_connected(hidden, NUM_ACTIONS)
+        value = layers.fully_connected(hidden, 1)
 
-        fcfb_w  = tf.Variable(np.random.randn(32, 512) * 0.01, name='fcfb_w', dtype=tf.float32)
-        fcfb_b  = tf.Variable(np.random.randn(512) * 0.01, name='fcfb_b', dtype=tf.float32)
-        # net
-        features_plan = layers.flatten(l)
-        net = tf.nn.relu(tf.matmul(features_plan,fc1_w) + fc1_b)
-        for i in range(PLAN_ITER_NUM - 1):
-            net = tf.nn.relu(tf.matmul(net,fc2_w) + fc2_b)
-            net = tf.nn.relu(tf.matmul(net,fcfb_w) + tf.matmul(features_plan, fc1_w) + fcfb_b + fc1_b)
-        net = tf.nn.relu(tf.matmul(net,fc2_w) + fc2_b)
-
-
-        # # plan module(tflearn)
-        # fc1 = tflearn.fully_connected(features_plan, 64)
-        # fc2 = tflearn.fully_connected(fc1, 32)
-        # fc_fb = tflearn.fully_connected(fc2, 64)
-
-        # net = tflearn.activation(tf.matmul(features_plan,fc1.W) + fc1.b, activation='relu')
-        # for i in range(PLAN_ITER_NUM - 1):
-        #     net = tflearn.activation(tf.matmul(net,fc2.W) + fc2.b, activation='relu')
-        #     net = tflearn.activation(tf.matmul(net,fc_fb.W) + tf.matmul(features_plan, fc1.W) + fc_fb.b + fc1.b, activation='relu')
-        # net = tflearn.activation(tf.matmul(net,fc2.W) + fc2.b, activation='relu')
-
-        l = FullyConnected('fc-out', net, 512, nl=tf.identity)
-        l = PReLU('prelu', l)
-        logits = FullyConnected('fc-pi', l, out_dim=NUM_ACTIONS, nl=tf.identity)    # unnormalized policy
-        value = FullyConnected('fc-v', l, 1, nl=tf.identity)
         return logits, value
 
 
