@@ -11,7 +11,8 @@ import dqn
 from dqn_utils import *
 from atari_wrappers import *
 
-SUMMARY_DIR = "./summary"
+PLAN_ITER_NUM = 8
+SUMMARY_DIR = "./summary_hybird_k8"
 
 def atari_model(img_in, num_actions, scope, reuse=False):
     # as described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf
@@ -22,10 +23,34 @@ def atari_model(img_in, num_actions, scope, reuse=False):
             out = layers.convolution2d(out, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
             out = layers.convolution2d(out, num_outputs=64, kernel_size=4, stride=2, activation_fn=tf.nn.relu)
             out = layers.convolution2d(out, num_outputs=64, kernel_size=3, stride=1, activation_fn=tf.nn.relu)
-        out = layers.flatten(out)
+        features = layers.flatten(out)
+
+        with tf.variable_scope("plan_module"):
+            # plan module
+            #   weights init
+            fc1_w  = tf.Variable(np.random.randn(7744, 64) * 0.01, name='fc1_w', dtype=tf.float32)
+            fc1_b  = tf.Variable(np.random.randn(64) * 0.01, name='fc1_b', dtype=tf.float32)
+
+            fc2_w  = tf.Variable(np.random.randn(64, 32) * 0.01, name='fc2_w', dtype=tf.float32)
+            fc2_b  = tf.Variable(np.random.randn(32) * 0.01, name='fc2_b', dtype=tf.float32)
+
+            fcfb_w  = tf.Variable(np.random.randn(32, 64) * 0.01, name='fcfb_w', dtype=tf.float32)
+            fcfb_b  = tf.Variable(np.random.randn(64) * 0.01, name='fcfb_b', dtype=tf.float32)
+
+            #   net
+            plan_net = tf.nn.relu(tf.matmul(features,fc1_w) + fc1_b)
+            for i in range(PLAN_ITER_NUM - 1):
+                plan_net = tf.nn.relu(tf.matmul(plan_net,fc2_w) + fc2_b)
+                plan_net = tf.nn.relu(tf.matmul(plan_net,fcfb_w) + tf.matmul(features, fc1_w) + fcfb_b + fc1_b)
+            plan_net = tf.nn.relu(tf.matmul(plan_net,fc2_w) + fc2_b)
+
         with tf.variable_scope("action_value"):
-            out = layers.fully_connected(out, num_outputs=512,         activation_fn=tf.nn.relu)
-            out = layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
+             # combine
+            hidden_plan = layers.fully_connected(plan_net, 512, activation_fn=tf.nn.relu)
+            hidden_reac = layers.fully_connected(features, 512, activation_fn=tf.nn.relu)
+            alpha  = tf.Variable(0.5, name = 'alpha', dtype=tf.float32)
+            hidden = tf.add(tf.multiply(hidden_plan, alpha), tf.multiply(hidden_reac, (1-alpha)))
+            out = layers.fully_connected(hidden, num_outputs=num_actions, activation_fn=None)
 
         return out
 
@@ -122,10 +147,8 @@ def get_env(task, seed):
 def main():
     # Get Atari games.
     benchmark = gym.benchmark_spec('Atari40M')
-
     # Change the index to select a different game.
-    task = benchmark.tasks[3]
-
+    task = benchmark.tasks[4]
     # Run training
     seed = 0 # Use a seed of zero (you may want to randomize the seed!)
     env = get_env(task, seed)
