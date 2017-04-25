@@ -392,8 +392,8 @@ def learn(env,
                 sum_exp: exploration.value(t),
                 sum_lr: optimizer_spec.lr_schedule.value(t),
                 })
-            run_metadata = tf.RunMetadata()
-            summary_writer.add_run_metadata(run_metadata, 'step%d' % t)
+            # run_metadata = tf.RunMetadata()
+            # summary_writer.add_run_metadata(run_metadata, 'step%d' % t)
             # summary.value.add(simple_value=mean_episode_reward, tag="mean_episode_reward")
             # summary.value.add(simple_value=best_mean_episode_reward, tag="best_mean_episode_reward")
             # summary.value.add(simple_value=exploration.value(t), tag="exploration")
