@@ -17,6 +17,8 @@ def atari_model(img_in, num_actions, scope, reuse=False):
     # as described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf
     with tf.variable_scope(scope, reuse=reuse):
         out = img_in
+        alpha  = tf.Variable(1, name = 'alpha', dtype=tf.float32)
+
         with tf.variable_scope("convnet"):
             # original architecture
             out = layers.convolution2d(out, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
@@ -27,7 +29,7 @@ def atari_model(img_in, num_actions, scope, reuse=False):
             out = layers.fully_connected(out, num_outputs=512,         activation_fn=tf.nn.relu)
             out = layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
 
-        return out
+        return out, alpha
 
 def atari_learn(env,
                 session,

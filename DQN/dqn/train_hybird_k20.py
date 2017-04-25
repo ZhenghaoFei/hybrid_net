@@ -52,7 +52,7 @@ def atari_model(img_in, num_actions, scope, reuse=False):
             hidden = tf.add(tf.multiply(hidden_plan, alpha), tf.multiply(hidden_reac, (1-alpha)))
             out = layers.fully_connected(hidden, num_outputs=num_actions, activation_fn=None)
 
-        return out
+        return out, alpha
 
 def atari_learn(env,
                 session,

@@ -132,8 +132,8 @@ def learn(env,
     ######
     
     # YOUR CODE HERE
-    q = q_func(obs_t_float, num_actions, scope="q_func", reuse=False)
-    target_q = q_func(obs_tp1_float, num_actions, scope="target_q_func", reuse=False)
+    q, alpha = q_func(obs_t_float, num_actions, scope="q_func", reuse=False)
+    target_q, _ = q_func(obs_tp1_float, num_actions, scope="target_q_func", reuse=False)
 
     # compute y, y = r if terminate, y = r + gamma * max_a Q(s,a) if non terminate
     y = rew_t_ph + (1 - done_mask_ph) * gamma * tf.reduce_max(target_q, axis=1)
@@ -179,9 +179,9 @@ def learn(env,
     sum_lr = tf.placeholder(tf.float32)
 
     summary_merged = tf.summary.merge([
+        tf.summary.scalar("alpha", alpha),
         tf.summary.scalar("mean_reward", sum_mean_r),
         tf.summary.scalar("best_reward", sum_best_r),
-        tf.summary.scalar("Timestep", sum_t),
         tf.summary.scalar("exploration", sum_exp),
         tf.summary.scalar("learning_rate", sum_lr)
     ])
@@ -388,7 +388,6 @@ def learn(env,
             summary = session.run(summary_merged, feed_dict={
                 sum_mean_r: mean_episode_reward,
                 sum_best_r: best_mean_episode_reward,
-                sum_t: t, 
                 sum_exp: exploration.value(t),
                 sum_lr: optimizer_spec.lr_schedule.value(t),
                 })
