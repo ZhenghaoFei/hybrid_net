@@ -2,6 +2,7 @@ import sys
 import gym.spaces
 import itertools
 import numpy as np
+import os
 import random
 import tensorflow                as tf
 import tensorflow.contrib.layers as layers
@@ -14,12 +15,13 @@ def learn(env,
           q_func,
           optimizer_spec,
           session,
+          summary_dir=None,
           exploration=LinearSchedule(1000000, 0.1),
           stopping_criterion=None,
           replay_buffer_size=1000000,
           batch_size=32,
           gamma=0.99,
-          learning_starts=50000,
+          learning_starts=10,#50000
           learning_freq=4,
           frame_history_len=4,
           target_update_freq=10000,
@@ -80,6 +82,8 @@ def learn(env,
     ###############
     # BUILD MODEL #
     ###############
+    global_step = tf.Variable(0, name='global_step', trainable=False)
+    global_step_add = tf.assign(global_step, tf.add(global_step, 1))
 
     if len(env.observation_space.shape) == 1:
         # This means we are running on low-dimensional observations (e.g. RAM)
@@ -135,10 +139,11 @@ def learn(env,
     y = rew_t_ph + (1 - done_mask_ph) * gamma * tf.reduce_max(target_q, axis=1)
 
     # loss
+
     a_idx = tf.range(0, batch_size)
     act_idx = tf.stack([a_idx, act_t_ph], axis=1)
-    total_error = tf.reduce_mean(tf.square(y - tf.gather_nd(q, act_idx)))
-    total_error = huber_loss(total_error)
+    total_error = y - tf.gather_nd(q, act_idx)
+    total_error = tf.reduce_mean(huber_loss(total_error))
 
     # collect variables
     q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
@@ -162,6 +167,30 @@ def learn(env,
     # construct the replay buffer
     replay_buffer = ReplayBuffer(replay_buffer_size, frame_history_len)
 
+
+    ##############################
+    # SUMMARY and CHECKPOINT     #
+    ##############################
+    # Summaries for Tensorboard
+    sum_mean_r = tf.placeholder(tf.float32)
+    sum_best_r = tf.placeholder(tf.float32)
+    sum_t = tf.placeholder(tf.int32)
+    sum_exp = tf.placeholder(tf.float32)
+    sum_lr = tf.placeholder(tf.float32)
+
+    summary_merged = tf.summary.merge([
+        tf.summary.scalar("mean_reward", sum_mean_r),
+        tf.summary.scalar("best_reward", sum_best_r),
+        tf.summary.scalar("Timestep", sum_t),
+        tf.summary.scalar("exploration", sum_exp),
+        tf.summary.scalar("learning_rate", sum_lr)
+    ])
+    # summary = tf.Summary()
+    if not os.path.exists(summary_dir):
+        os.makedirs(summary_dir)
+    summary_writer = tf.summary.FileWriter(summary_dir, session.graph)
+    saver = tf.train.Saver()
+
     ###############
     # RUN ENV     #
     ###############
@@ -172,7 +201,27 @@ def learn(env,
     last_obs = env.reset()
     LOG_EVERY_N_STEPS = 10000
 
-    for t in itertools.count():
+    ##########################
+    # initialize the model   #
+    ##########################
+    if not model_initialized:
+        # initialize_interdependent_variables(session, tf.global_variables(), {
+        #    obs_t_ph: obs_t_batch,
+        #    obs_tp1_ph: obs_tp1_batch,
+        # })
+        init = tf.global_variables_initializer()
+        session.run(init)
+        model_initialized = True
+
+        latest_checkpoint = tf.train.latest_checkpoint(summary_dir)
+        if latest_checkpoint:
+            print("Loading model checkpoint {}...\n".format(latest_checkpoint))
+            saver.restore(session, latest_checkpoint)
+        else:
+            print("No model", summary_dir)
+
+    for k in itertools.count():
+        t = session.run(global_step)
         ### 1. Check stopping criterion
         if stopping_criterion is not None and stopping_criterion(env, t):
             break
@@ -210,14 +259,16 @@ def learn(env,
         #####
         
         # YOUR CODE HERE
+        idx = replay_buffer.store_frame(last_obs)
+        recent_frames = replay_buffer.encode_recent_observation()
+        recent_frames = recent_frames.reshape([1, recent_frames.shape[0], 
+            recent_frames.shape[1], recent_frames.shape[2]])
 
         # choose action
-        if not model_initialized or np.random.rand() < exploration.value(t):
-            action = np.random.randint(0, num_actions)
+        if not model_initialized or np.random.rand(1) < exploration.value(t):
+            action = env.action_space.sample()
         else:
-            recent_frames = replay_buffer.encode_recent_observation()
-            recent_frames = recent_frames.reshape([1, recent_frames.shape[0], 
-                recent_frames.shape[1], recent_frames.shape[2]])
+
             q_val  = session.run(q, feed_dict={obs_t_ph: recent_frames})
             action = np.argmax(q_val)
 
@@ -225,7 +276,6 @@ def learn(env,
         obs, reward, done, info = env.step(action)
         # env.render()
         # store info
-        idx = replay_buffer.store_frame(last_obs)
         replay_buffer.store_effect(idx, action, reward, done)
         last_obs = obs
 
@@ -285,16 +335,26 @@ def learn(env,
             # sample a batch of transitions
             obs_t_batch, act_batch, rew_batch, obs_tp1_batch, done_mask = replay_buffer.sample(batch_size)
 
-            # initialize the model 
-            if not model_initialized:
-                initialize_interdependent_variables(session, tf.global_variables(), {
-                   obs_t_ph: obs_t_batch,
-                   obs_tp1_ph: obs_tp1_batch,
-                })
-                model_initialized = True
+            # # initialize the model 
+            # if not model_initialized:
+            #     # initialize_interdependent_variables(session, tf.global_variables(), {
+            #     #    obs_t_ph: obs_t_batch,
+            #     #    obs_tp1_ph: obs_tp1_batch,
+            #     # })
+            #     init = tf.global_variables_initializer()
+            #     session.run(init)
+            #     model_initialized = True
+
+            #     latest_checkpoint = tf.train.latest_checkpoint(summary_dir)
+            #     if latest_checkpoint:
+            #         print("Loading model checkpoint {}...\n".format(latest_checkpoint))
+            #         saver.restore(session, latest_checkpoint)
+            #     else:
+            #         print("No model", summary_dir)
+
 
             # train the model
-            loss = session.run([total_error, train_fn], feed_dict={
+            _ = session.run(train_fn, feed_dict={
                 obs_t_ph: obs_t_batch,
                 act_t_ph: act_batch,
                 rew_t_ph: rew_batch,
@@ -309,6 +369,7 @@ def learn(env,
             #####
 
         ### 4. Log progress
+        # stdout
         episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
         if len(episode_rewards) > 0:
             mean_episode_reward = np.mean(episode_rewards[-100:])
@@ -322,3 +383,26 @@ def learn(env,
             print("exploration %f" % exploration.value(t))
             print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
             sys.stdout.flush()
+
+            # summary
+            summary = session.run(summary_merged, feed_dict={
+                sum_mean_r: mean_episode_reward,
+                sum_best_r: best_mean_episode_reward,
+                sum_t: t, 
+                sum_exp: exploration.value(t),
+                sum_lr: optimizer_spec.lr_schedule.value(t),
+                })
+            run_metadata = tf.RunMetadata()
+            summary_writer.add_run_metadata(run_metadata, 'step%d' % t)
+            # summary.value.add(simple_value=mean_episode_reward, tag="mean_episode_reward")
+            # summary.value.add(simple_value=best_mean_episode_reward, tag="best_mean_episode_reward")
+            # summary.value.add(simple_value=exploration.value(t), tag="exploration")
+            # summary.value.add(simple_value=optimizer_spec.lr_schedule.value(t), tag="lr")
+            summary_writer.add_summary(summary, t)
+            summary_writer.flush()
+
+            # checkpoint
+            save_path = saver.save(session, summary_dir+"/model.ckpt")
+            print("Model saved in file: %s" % save_path)
+        session.run(global_step_add)
+

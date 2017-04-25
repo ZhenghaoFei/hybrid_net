@@ -11,6 +11,7 @@ import dqn
 from dqn_utils import *
 from atari_wrappers import *
 
+SUMMARY_DIR = "./summary"
 
 def atari_model(img_in, num_actions, scope, reuse=False):
     # as described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf
@@ -65,6 +66,7 @@ def atari_learn(env,
         q_func=atari_model,
         optimizer_spec=optimizer,
         session=session,
+        summary_dir=SUMMARY_DIR,
         exploration=exploration_schedule,
         stopping_criterion=stopping_criterion,
         replay_buffer_size=1000000,
