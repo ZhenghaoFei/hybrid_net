@@ -11,13 +11,15 @@ import dqn
 from dqn_utils import *
 from atari_wrappers import *
 
-PLAN_ITER_NUM = 2
-SUMMARY_DIR = "./summary_hybird_k2"
+PLAN_ITER_NUM = 8
+SUMMARY_DIR = "./summary_hybird_k8"
 
 def atari_model(img_in, num_actions, scope, reuse=False):
     # as described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf
     with tf.variable_scope(scope, reuse=reuse):
         out = img_in
+        beta = tf.Variable(0.5*np.ones(1), name='beta', dtype=tf.float32)
+
         with tf.variable_scope("convnet"):
             # original architecture
             out = layers.convolution2d(out, num_outputs=32, kernel_size=8, stride=4, activation_fn=tf.nn.relu)
@@ -52,7 +54,7 @@ def atari_model(img_in, num_actions, scope, reuse=False):
             hidden = tf.add(tf.multiply(hidden_plan, alpha), tf.multiply(hidden_reac, (1-alpha)))
             out = layers.fully_connected(hidden, num_outputs=num_actions, activation_fn=None)
 
-        return out, alpha
+        return out, alpha, beta
 
 def atari_learn(env,
                 session,
@@ -148,7 +150,7 @@ def main():
     # Get Atari games.
     benchmark = gym.benchmark_spec('Atari40M')
     # Change the index to select a different game.
-    task = benchmark.tasks[4]
+    task = benchmark.tasks[5]
     # Run training
     seed = 0 # Use a seed of zero (you may want to randomize the seed!)
     env = get_env(task, seed)

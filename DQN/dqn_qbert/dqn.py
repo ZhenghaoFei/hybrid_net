@@ -132,8 +132,8 @@ def learn(env,
     ######
     
     # YOUR CODE HERE
-    q, alpha = q_func(obs_t_float, num_actions, scope="q_func", reuse=False)
-    target_q, _ = q_func(obs_tp1_float, num_actions, scope="target_q_func", reuse=False)
+    q, alpha, beta = q_func(obs_t_float, num_actions, scope="q_func", reuse=False)
+    target_q, _, _ = q_func(obs_tp1_float, num_actions, scope="target_q_func", reuse=False)
 
     # compute y, y = r if terminate, y = r + gamma * max_a Q(s,a) if non terminate
     y = rew_t_ph + (1 - done_mask_ph) * gamma * tf.reduce_max(target_q, axis=1)
@@ -177,13 +177,16 @@ def learn(env,
     sum_t = tf.placeholder(tf.int32)
     sum_exp = tf.placeholder(tf.float32)
     sum_lr = tf.placeholder(tf.float32)
-
+    sum_alpha = tf.placeholder(tf.float32)
     summary_merged = tf.summary.merge([
-        tf.summary.scalar("alpha", alpha),
         tf.summary.scalar("mean_reward", sum_mean_r),
         tf.summary.scalar("best_reward", sum_best_r),
         tf.summary.scalar("exploration", sum_exp),
-        tf.summary.scalar("learning_rate", sum_lr)
+        tf.summary.scalar("learning_rate", sum_lr),
+        tf.summary.scalar("alpha", tf.reduce_mean(alpha)),
+        tf.summary.histogram("alphas", alpha),
+        tf.summary.histogram("beta", beta),
+
     ])
     # summary = tf.Summary()
     if not os.path.exists(summary_dir):
@@ -224,6 +227,7 @@ def learn(env,
         t = session.run(global_step)
         ### 1. Check stopping criterion
         if stopping_criterion is not None and stopping_criterion(env, t):
+            print "stopping_criterion satisfied"
             break
 
         ### 2. Step the env and store the transition
@@ -368,40 +372,49 @@ def learn(env,
                 session.run(update_target_fn)
             #####
 
-        ### 4. Log progress
-        # stdout
-        episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
-        if len(episode_rewards) > 0:
-            mean_episode_reward = np.mean(episode_rewards[-100:])
-        if len(episode_rewards) > 100:
-            best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
-        if t % LOG_EVERY_N_STEPS == 0 and model_initialized:
-            print("Timestep %d" % (t,))
-            print("mean reward (100 episodes) %f" % mean_episode_reward)
-            print("best mean reward %f" % best_mean_episode_reward)
-            print("episodes %d" % len(episode_rewards))
-            print("exploration %f" % exploration.value(t))
-            print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
-            sys.stdout.flush()
+            ### 4. Log progress
+            # stdout
+            episode_rewards = get_wrapper_by_name(env, "Monitor").get_episode_rewards()
+            if len(episode_rewards) > 0:
+                mean_episode_reward = np.mean(episode_rewards[-100:])
+            if len(episode_rewards) > 100:
+                best_mean_episode_reward = max(best_mean_episode_reward, mean_episode_reward)
+            if t % LOG_EVERY_N_STEPS == 0 and model_initialized:
+                print("Timestep %d" % (t,))
+                print("mean reward (100 episodes) %f" % mean_episode_reward)
+                print("best mean reward %f" % best_mean_episode_reward)
+                print("episodes %d" % len(episode_rewards))
+                print("exploration %f" % exploration.value(t))
+                print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
+                print("beta: ", session.run(beta))
+                # print("alpha: ", session.run(alpha))
 
-            # summary
-            summary = session.run(summary_merged, feed_dict={
-                sum_mean_r: mean_episode_reward,
-                sum_best_r: best_mean_episode_reward,
-                sum_exp: exploration.value(t),
-                sum_lr: optimizer_spec.lr_schedule.value(t),
-                })
-            # run_metadata = tf.RunMetadata()
-            # summary_writer.add_run_metadata(run_metadata, 'step%d' % t)
-            # summary.value.add(simple_value=mean_episode_reward, tag="mean_episode_reward")
-            # summary.value.add(simple_value=best_mean_episode_reward, tag="best_mean_episode_reward")
-            # summary.value.add(simple_value=exploration.value(t), tag="exploration")
-            # summary.value.add(simple_value=optimizer_spec.lr_schedule.value(t), tag="lr")
-            summary_writer.add_summary(summary, t)
-            summary_writer.flush()
+                sys.stdout.flush()
 
-            # checkpoint
-            save_path = saver.save(session, summary_dir+"/model.ckpt")
-            print("Model saved in file: %s" % save_path)
+                # summary
+                summary = session.run(summary_merged, feed_dict={
+                    obs_t_ph: obs_t_batch,
+                    act_t_ph: act_batch,
+                    rew_t_ph: rew_batch,
+                    obs_tp1_ph: obs_tp1_batch,
+                    sum_mean_r: mean_episode_reward,
+                    sum_best_r: best_mean_episode_reward,
+                    sum_exp: exploration.value(t),
+                    sum_lr: optimizer_spec.lr_schedule.value(t),
+                    # sum_alpha: session.run(tf.reduce_mean(sum_alphas)),
+                    })
+                # run_metadata = tf.RunMetadata()
+                # summary_writer.add_run_metadata(run_metadata, 'step%d' % t)
+                # summary.value.add(simple_value=mean_episode_reward, tag="mean_episode_reward")
+                # summary.value.add(simple_value=best_mean_episode_reward, tag="best_mean_episode_reward")
+                # summary.value.add(simple_value=exploration.value(t), tag="exploration")
+                # summary.value.add(simple_value=optimizer_spec.lr_schedule.value(t), tag="lr")
+                summary_writer.add_summary(summary, t)
+                summary_writer.flush()
+
+                # checkpoint
+                save_path = saver.save(session, summary_dir+"/model.ckpt")
+                print("Model saved in file: %s" % save_path)
+
         session.run(global_step_add)
 

@@ -1,0 +1,9 @@
+benchmark = gym.benchmark_spec('Atari40M')
+
+0Making new env: BreakoutNoFrameskip-v3
+1Making new env: BeamRiderNoFrameskip-v3
+2Making new env: EnduroNoFrameskip-v3
+3Making new env: PongNoFrameskip-v3
+4Making new env: QbertNoFrameskip-v3
+5Making new env: SeaquestNoFrameskip-v3
+6Making new env: SpaceInvadersNoFrameskip-v3

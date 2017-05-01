@@ -18,6 +18,7 @@ def atari_model(img_in, num_actions, scope, reuse=False):
     with tf.variable_scope(scope, reuse=reuse):
         out = img_in
         alpha  = tf.Variable(1, name = 'alpha', dtype=tf.float32)
+        beta = tf.Variable(0.5*np.ones(1), name='beta', dtype=tf.float32)
 
         with tf.variable_scope("convnet"):
             # original architecture
@@ -29,7 +30,7 @@ def atari_model(img_in, num_actions, scope, reuse=False):
             out = layers.fully_connected(out, num_outputs=512,         activation_fn=tf.nn.relu)
             out = layers.fully_connected(out, num_outputs=num_actions, activation_fn=None)
 
-        return out, alpha
+        return out, alpha, beta
 
 def atari_learn(env,
                 session,
@@ -125,11 +126,12 @@ def main():
     # Get Atari games.
     benchmark = gym.benchmark_spec('Atari40M')
     # Change the index to select a different game.
-    task = benchmark.tasks[4]
+    task = benchmark.tasks[5]
     # Run training
     seed = 0 # Use a seed of zero (you may want to randomize the seed!)
     env = get_env(task, seed)
     session = get_session()
+    print "max time steps:", task.max_timesteps
     atari_learn(env, session, num_timesteps=task.max_timesteps)
 
 if __name__ == "__main__":
